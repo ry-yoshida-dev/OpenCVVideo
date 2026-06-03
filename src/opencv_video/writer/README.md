@@ -16,7 +16,7 @@ Encode a sequence of BGR images to a video file. The underlying `cv2.VideoWriter
 | Field | Default | Description |
 |-------|---------|-------------|
 | `fps` | `30` | Output frame rate |
-| `codec` | `VideoCodec.MP4V` | FourCC via [codec.py](../codec.py) |
+| `codec` | `VideoCodec.MP4V` | FourCC via `VideoCodec.fourcc` in [codec.py](../codec.py) |
 | `is_timestamp_enabled` | `False` | Draw `Frame: {id}` on each frame |
 | `freq` | `1` | Step for `IDManager` when timestamp is enabled |
 | `start_index` | `0` | Validated; reserved for future offset use |

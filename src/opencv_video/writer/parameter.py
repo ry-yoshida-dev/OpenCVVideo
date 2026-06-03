@@ -83,8 +83,9 @@ class VideoWriterParameters:
         --------
         cv2.VideoWriter: The video writer.
         """
-        codec = self.codec.value
-        if len(codec) != 4:
-            raise ValueError(f"codec must be a 4-character FourCC string, got {codec!r}")
-        fourcc = cv2.VideoWriter.fourcc(codec[0], codec[1], codec[2], codec[3])
-        return cv2.VideoWriter(output_path, fourcc, float(self.fps), image_size)
+        return cv2.VideoWriter(
+            filename=output_path,
+            fourcc=self.codec.fourcc,
+            fps=float(self.fps), 
+            frameSize=image_size
+            )

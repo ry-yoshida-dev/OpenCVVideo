@@ -1,12 +1,15 @@
 from enum import Enum
 
+import cv2
+
+
 class VideoCodec(Enum):
     """
     VideoCodec is the codec for the video.
 
     Each value is a 4-character FourCC string for OpenCV VideoWriter.
 
-    Attributes:
+    Attributes
     ----------
     MP4V: MPEG-4 Part 2. Common for .mp4.
     AVC1: H.264 (avc1). Better compression; may require FFmpeg-enabled OpenCV.
@@ -29,3 +32,25 @@ class VideoCodec(Enum):
     FMP4 = "FMP4"
     VP80 = "VP80"
     VP90 = "VP90"
+
+    @property
+    def fourcc(self) -> int:
+        """
+        OpenCV VideoWriter fourcc integer for this codec.
+
+        Returns
+        -------
+        int
+            FourCC code passed to ``cv2.VideoWriter``.
+
+        Raises
+        ------
+        ValueError
+            If the enum value is not a 4-character FourCC string.
+        """
+        codec: str = self.value
+        if len(codec) != 4:
+            raise ValueError(
+                f"codec must be a 4-character FourCC string, got {codec!r}"
+            )
+        return cv2.VideoWriter.fourcc(codec[0], codec[1], codec[2], codec[3])
