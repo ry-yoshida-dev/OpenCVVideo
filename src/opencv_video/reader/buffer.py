@@ -7,6 +7,8 @@ from typing import Any
 
 import numpy as np
 
+from ..types import BGRFrame
+
 # Sentinel for end of stream in queue
 _QUEUE_END: Any = object()
 
@@ -17,12 +19,12 @@ class FrameBuffer:
 
     Consumes an iterator produced by the given factory and puts items into
     a bounded queue. Callers iterate via __iter__ / __next__ and get
-    (frame_id, np.ndarray). Call release() when done to stop the producer.
+    (frame_id, BGRFrame). Call release() when done to stop the producer.
     """
 
     def __init__(
         self,
-        frame_iterator_factory: Callable[[], Iterator[tuple[int, np.ndarray]]],
+        frame_iterator_factory: Callable[[], Iterator[tuple[int, BGRFrame]]],
         queue_size: int = 2,
     ) -> None:
         """
@@ -35,7 +37,7 @@ class FrameBuffer:
         """
         self._frame_iterator_factory = frame_iterator_factory
         self._queue_size = queue_size
-        self._queue: queue_module.Queue[tuple[int, np.ndarray] | Any] | None = None
+        self._queue: queue_module.Queue[tuple[int, BGRFrame] | Any] | None = None
         self._producer_stop: threading.Event | None = None
         self._producer_thread: threading.Thread | None = None
 
@@ -81,7 +83,7 @@ class FrameBuffer:
         self.start()
         return self
 
-    def __next__(self) -> tuple[int, np.ndarray]:
+    def __next__(self) -> tuple[int, BGRFrame]:
         if self._queue is None:
             raise StopIteration
         item = self._queue.get()

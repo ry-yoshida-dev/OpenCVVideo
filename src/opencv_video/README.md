@@ -2,7 +2,7 @@
 
 ## Overview
 
-OpenCV-based utilities for reading and writing video. `VideoReader` supports efficient frame iteration and random access; `VideoWriter` encodes image sequences with optional frame-index overlays.
+OpenCV-based utilities for reading, writing, and combining video. `VideoReader` supports efficient frame iteration and random access; `VideoWriter` encodes image sequences with optional frame-index overlays; `VideoCombinator` tiles multiple inputs into a grid output.
 
 ## Public API
 
@@ -14,11 +14,16 @@ Re-exported from [\_\_init\_\_.py](__init__.py):
 | `VideoWriter` | Lazy-initialized `cv2.VideoWriter` wrapper with context manager support |
 | `VideoWriterParameters` | FPS, codec, and timestamp options for `VideoWriter` |
 | `VideoCodec` | FourCC enum for `VideoWriter`; use `.fourcc` for the OpenCV integer |
+| `VideoCombinator` | Grid-layout composition of multiple input videos |
+| `VideoCombinatorParameters` | Grid layout and iteration settings for `VideoCombinator` |
+| `StopCriteria` | When to stop composing (`SHORT_VIDEO_END` or `LONGEST_VIDEO_END`) |
 
 ## Components
 
 | File / Dir | Role |
 |------------|------|
+| [types.py](types.py) | `BGRFrame` alias (`NDArray[np.uint8]`) for typed BGR image arrays |
+| [combinator/](combinator/) | `VideoCombinator`, `VideoCombinatorParameters`, and `StopCriteria`. See [combinator/README.md](combinator/README.md) |
 | [reader/](reader/) | `VideoReader`, `VideoFrameIterator`, and `FrameBuffer`. See [reader/README.md](reader/README.md) |
 | [writer/](writer/) | `VideoWriter` and `VideoWriterParameters`. See [writer/README.md](writer/README.md) |
 | [codec.py](codec.py) | `VideoCodec` enum with `.fourcc` property for `cv2.VideoWriter` |

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Self
 
 from .parameter import VideoWriterParameters
+from ..types import BGRFrame
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class VideoWriter:
 
         Parameters:
         ----------
-        first_image: np.ndarray
+        first_image: BGRFrame
             The first image to write.
         params: VideoWriterParameters
             The parameters for the video writer.
@@ -51,14 +52,14 @@ class VideoWriter:
 
     def write(
         self, 
-        image: np.ndarray
+        image: BGRFrame
         ) -> None:
         """
         Write an image to the video.
 
         Parameters:
         ----------
-        image: np.ndarray
+        image: BGRFrame
             The image to write.
         """
         if self.writer is None:

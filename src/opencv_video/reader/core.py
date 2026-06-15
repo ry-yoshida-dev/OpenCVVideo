@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from .buffer import FrameBuffer
+from ..types import BGRFrame
 
 
 def _cap_position_after_read(frame_id: int, freq: int) -> int:
@@ -18,7 +19,7 @@ def _cap_position_after_read(frame_id: int, freq: int) -> int:
 _EXTRACT_SEEK_THRESHOLD = 20
 
 
-class VideoFrameIterator(Iterator[np.ndarray]):
+class VideoFrameIterator(Iterator[BGRFrame]):
     """
     Per-iteration iterator that owns its own VideoCapture.
     Makes nested loops (e.g. for a in r: for b in r:) safe by not sharing cap state.
@@ -35,7 +36,7 @@ class VideoFrameIterator(Iterator[np.ndarray]):
         self._last_cap_position: int | None = None
         self._last_yielded_frame_id: int | None = None
 
-    def __next__(self) -> np.ndarray:
+    def __next__(self) -> BGRFrame:
         if self._next_frame_id > self.reader.total_frame:
             raise StopIteration
         ret, frame = self.reader._read_next_valid_frame(
@@ -103,7 +104,7 @@ class VideoReader:
         The step size for frame iteration.
     cap: cv2.VideoCapture
         The video capture object.
-    _read_next_frame: Callable[[], tuple[bool, np.ndarray | None]]
+    _read_next_frame: Callable[[], tuple[bool, BGRFrame | None]]
         The function to read the next frame.
     total_frame: int
         The total number of frames in the video.
@@ -115,7 +116,7 @@ class VideoReader:
         Max number of frames to prefetch when use_queue is True.
     freq_th: int
         Threshold for freq; above this value, seek-based read is used instead of loop.
-    _next_impl: Callable[[], np.ndarray]
+    _next_impl: Callable[[], BGRFrame]
         Bound implementation for __next__ (either _next_from_queue or _next_from_cap).
     """
 
@@ -127,7 +128,7 @@ class VideoReader:
     queue_size: int = 2
 
     cap: cv2.VideoCapture = field(init=False)
-    _frame_reader_function: Callable[[], tuple[bool, np.ndarray | None]] = field(init=False)
+    _frame_reader_function: Callable[[], tuple[bool, BGRFrame | None]] = field(init=False)
     total_frame: int = field(init=False)
     _next_frame_id: int = field(init=False)
     _buffer: FrameBuffer | None = field(init=False, default=None)
@@ -135,7 +136,7 @@ class VideoReader:
     _current_iterator: VideoFrameIterator | None = field(init=False, default=None)
     _last_cap_position: int | None = field(init=False, default=None)
     _last_extract_position: int | None = field(init=False, default=None)
-    _next_impl: Callable[[], np.ndarray] = field(init=False)
+    _next_impl: Callable[[], BGRFrame] = field(init=False)
 
     def __post_init__(self) -> None:
         """
@@ -161,7 +162,7 @@ class VideoReader:
         self._next_impl = self._next_from_cap
         self._current_iterator = None
 
-    def define_frame_reader_function(self) -> Callable[[], tuple[bool, np.ndarray | None]]:
+    def define_frame_reader_function(self) -> Callable[[], tuple[bool, BGRFrame | None]]:
         """
         Define the function to read the next frame.
 
@@ -170,7 +171,7 @@ class VideoReader:
 
         Returns
         -------
-        Callable[[], tuple[bool, np.ndarray | None]]
+        Callable[[], tuple[bool, BGRFrame | None]]
             The function to read the next frame.
         """
         return lambda: self._read_next_valid_frame(
@@ -183,7 +184,7 @@ class VideoReader:
         next_frame_id: int,
         *,
         current_cap_position: int | None = None,
-    ) -> tuple[bool, np.ndarray | None]:
+    ) -> tuple[bool, BGRFrame | None]:
         """
         Read the next valid frame at the given position (single responsibility: one logical frame).
 
@@ -202,7 +203,7 @@ class VideoReader:
 
         Returns
         -------
-        tuple[bool, np.ndarray | None]
+        tuple[bool, BGRFrame | None]
             (success, frame). Frame is None on failure.
         """
         if self.freq > self.freq_th:
@@ -219,13 +220,13 @@ class VideoReader:
                 return False, None
         return ret, frame
 
-    def _next_from_queue(self) -> np.ndarray:
+    def _next_from_queue(self) -> BGRFrame:
         """Get next frame from buffer. Used when use_queue is True."""
         frame_id, frame = self._buffer.__next__()
         self._current_frame_id_queue = frame_id
         return frame
 
-    def _next_from_cap(self) -> np.ndarray:
+    def _next_from_cap(self) -> BGRFrame:
         """Get next frame from VideoCapture. Used when use_queue is False."""
         if self._next_frame_id > self.total_frame:
             raise StopIteration
@@ -243,7 +244,7 @@ class VideoReader:
     def _iterate_frames(
         self,
         cap: cv2.VideoCapture | None = None,
-        ) -> Iterator[tuple[int, np.ndarray]]:
+        ) -> Iterator[tuple[int, BGRFrame]]:
         """
         Yield (frame_id, frame). Uses cap if given.
         Delegates "next valid frame" to _read_next_valid_frame; no branching on freq/freq_th here.
@@ -255,7 +256,7 @@ class VideoReader:
 
         Returns
         -------
-        Iterator[tuple[int, np.ndarray]]
+        Iterator[tuple[int, BGRFrame]]
             An iterator yielding (frame_id, frame).
         """
         own_cap = cap is None
@@ -283,13 +284,13 @@ class VideoReader:
 
     def _create_frame_iterator_factory(
         self,
-        ) -> Callable[[], Iterator[tuple[int, np.ndarray]]]:
+        ) -> Callable[[], Iterator[tuple[int, BGRFrame]]]:
         """
         Create a frame iterator factory.
 
         Returns
         -------
-        Callable[[], Iterator[tuple[int, np.ndarray]]]: A function that returns an iterator yielding (frame_id, frame).
+        Callable[[], Iterator[tuple[int, BGRFrame]]]: A function that returns an iterator yielding (frame_id, frame).
         """
         return lambda: self._iterate_frames(self.cap)
 
@@ -308,7 +309,7 @@ class VideoReader:
     def extract_frame(
         self,
         frame_number: int
-        ) -> np.ndarray:
+        ) -> BGRFrame:
         """
         Extracts and saves a specific frame from the video.
 
@@ -321,7 +322,7 @@ class VideoReader:
 
         Returns
         -------
-        np.ndarray
+        BGRFrame
             The extracted frame.
 
         Raises
@@ -358,7 +359,7 @@ class VideoReader:
         self._last_extract_position = frame_number
         return frame
 
-    def __iter__(self) -> Iterator[np.ndarray]:
+    def __iter__(self) -> Iterator[BGRFrame]:
         """
         Resets the video position to the specified iter_start_frame and returns an iterator over frames.
 
@@ -367,7 +368,7 @@ class VideoReader:
 
         Returns
         -------
-        Iterator[np.ndarray]
+        Iterator[BGRFrame]
             Iterator yielding frames sequentially from the iter_start_frame.
         """
         self._current_frame_id_queue = None
@@ -398,7 +399,7 @@ class VideoReader:
         """
         return self.total_frame
 
-    def __next__(self) -> np.ndarray:
+    def __next__(self) -> BGRFrame:
         """ Retrieves the next frame in the video, based on the specified frequency.
 
         When use_queue=False, delegates to the current VideoFrameIterator if one exists,
@@ -406,7 +407,7 @@ class VideoReader:
 
         Returns
         -------
-        numpy.ndarray
+        BGRFrame
             The next frame as a NumPy array.
 
         Raises
