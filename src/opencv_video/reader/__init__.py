@@ -1,5 +1,5 @@
-from .core import VideoReader
+from .video_reader import VideoReader
 
 __all__ = [
-    "VideoReader"
+    "VideoReader",
 ]

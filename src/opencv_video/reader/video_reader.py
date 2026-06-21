@@ -1,77 +1,17 @@
 from __future__ import annotations
 
 import os
-import cv2
-import numpy as np
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from types import TracebackType
 from typing import Callable
 
+import cv2
+
+from ..types import BGRFrame, as_bgr_frame
 from .buffer import FrameBuffer
-from ..types import BGRFrame
-
-
-def _cap_position_after_read(frame_id: int, freq: int) -> int:
-    """Position of the capture after reading the frame at frame_id (0-based)."""
-    return max(0, frame_id - freq + 1) + freq
-
-# When extract_frame target is within this many frames of last position, use read() instead of seek.
-_EXTRACT_SEEK_THRESHOLD = 20
-
-
-class VideoFrameIterator(Iterator[BGRFrame]):
-    """
-    Per-iteration iterator that owns its own VideoCapture.
-    Makes nested loops (e.g. for a in r: for b in r:) safe by not sharing cap state.
-    """
-
-    def __init__(self, reader: VideoReader) -> None:
-        self.reader = reader
-        self._cap = cv2.VideoCapture(reader.video_path)
-        if not self._cap.isOpened():
-            raise ValueError(
-                f"Error: Failed to open the video file: {reader.video_path}"
-            )
-        self._next_frame_id = reader.iter_start_frame
-        self._last_cap_position: int | None = None
-        self._last_yielded_frame_id: int | None = None
-
-    def __next__(self) -> BGRFrame:
-        if self._next_frame_id > self.reader.total_frame:
-            raise StopIteration
-        ret, frame = self.reader._read_next_valid_frame(
-            self._cap,
-            self._next_frame_id,
-            current_cap_position=self._last_cap_position,
-        )
-        if frame is not None and ret:
-            self._last_cap_position = _cap_position_after_read(
-                self._next_frame_id, self.reader.freq
-            )
-            self._last_yielded_frame_id = self._next_frame_id
-        self._next_frame_id += self.reader.freq
-        if frame is None or not ret:
-            raise StopIteration
-        return frame
-
-    @property
-    def frame_id(self) -> int:
-        """Last yielded frame id (e.g. for use by the owning VideoReader)."""
-        if self._last_yielded_frame_id is not None:
-            return self._last_yielded_frame_id
-        return self.reader.iter_start_frame - 1
-
-    @property
-    def is_reach_end_of_video(self) -> bool:
-        return self._next_frame_id > self.reader.total_frame
-
-    def release(self) -> None:
-        if hasattr(self, "_cap") and self._cap is not None:
-            self._cap.release()
-            self._cap = None
-
-    def __del__(self) -> None:
-        self.release()
+from .frame_iterator import VideoFrameIterator
+from .utils import EXTRACT_SEEK_THRESHOLD, cap_position_after_read
 
 
 @dataclass
@@ -188,9 +128,9 @@ class VideoReader:
         """
         Read the next valid frame at the given position (single responsibility: one logical frame).
 
-        - When freq > freq_th: seek to next_frame_id and read once (efficient for large step).
-        - When freq <= freq_th: seek only if cap is not already at the right position, then read
-          freq times (avoids one seek per frame for sequential iteration).
+        When freq > freq_th: seek to next_frame_id and read once (efficient for large step).
+        When freq <= freq_th: seek only if cap is not already at the right position, then read
+        freq times (avoids one seek per frame for sequential iteration).
 
         Parameters
         ----------
@@ -208,21 +148,43 @@ class VideoReader:
         """
         if self.freq > self.freq_th:
             cap.set(cv2.CAP_PROP_POS_FRAMES, next_frame_id)
-            return cap.read()
-        # freq <= freq_th: seek only when not already at the right position
-        start_pos = _cap_position_after_read(next_frame_id, self.freq) - self.freq
+            return self._read_bgr_frame(cap)
+        start_pos = cap_position_after_read(next_frame_id, self.freq) - self.freq
         if current_cap_position != start_pos:
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_pos)
         ret, frame = False, None
         for _ in range(self.freq):
-            ret, frame = cap.read()
+            ret, frame = self._read_bgr_frame(cap)
             if not ret:
                 return False, None
         return ret, frame
 
+    @staticmethod
+    def _read_bgr_frame(cap: cv2.VideoCapture) -> tuple[bool, BGRFrame | None]:
+        """
+        Read one frame from capture and narrow it to BGRFrame.
+
+        Parameters
+        ----------
+        cap : cv2.VideoCapture
+            OpenCV capture handle.
+
+        Returns
+        -------
+        tuple[bool, BGRFrame | None]
+            Success flag and validated BGR frame, or None on read failure.
+        """
+        ret, frame = cap.read()
+        if not ret:
+            return False, None
+        return True, as_bgr_frame(frame)
+
     def _next_from_queue(self) -> BGRFrame:
         """Get next frame from buffer. Used when use_queue is True."""
-        frame_id, frame = self._buffer.__next__()
+        buffer = self._buffer
+        if buffer is None:
+            raise StopIteration
+        frame_id, frame = buffer.__next__()
         self._current_frame_id_queue = frame_id
         return frame
 
@@ -232,7 +194,7 @@ class VideoReader:
             raise StopIteration
         ret, frame = self._frame_reader_function()
         if frame is not None and ret:
-            self._last_cap_position = _cap_position_after_read(
+            self._last_cap_position = cap_position_after_read(
                 self._next_frame_id, self.freq
             )
         self._next_frame_id += self.freq
@@ -244,7 +206,7 @@ class VideoReader:
     def _iterate_frames(
         self,
         cap: cv2.VideoCapture | None = None,
-        ) -> Iterator[tuple[int, BGRFrame]]:
+    ) -> Iterator[tuple[int, BGRFrame]]:
         """
         Yield (frame_id, frame). Uses cap if given.
         Delegates "next valid frame" to _read_next_valid_frame; no branching on freq/freq_th here.
@@ -276,7 +238,7 @@ class VideoReader:
                 if not ret or frame is None:
                     return
                 yield (next_id, frame)
-                cap_pos = _cap_position_after_read(next_id, self.freq)
+                cap_pos = cap_position_after_read(next_id, self.freq)
                 next_id += self.freq
         finally:
             if own_cap:
@@ -284,7 +246,7 @@ class VideoReader:
 
     def _create_frame_iterator_factory(
         self,
-        ) -> Callable[[], Iterator[tuple[int, BGRFrame]]]:
+    ) -> Callable[[], Iterator[tuple[int, BGRFrame]]]:
         """
         Create a frame iterator factory.
 
@@ -308,8 +270,8 @@ class VideoReader:
 
     def extract_frame(
         self,
-        frame_number: int
-        ) -> BGRFrame:
+        frame_number: int,
+    ) -> BGRFrame:
         """
         Extracts and saves a specific frame from the video.
 
@@ -334,7 +296,7 @@ class VideoReader:
             cap = cv2.VideoCapture(self.video_path)
             try:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-                ret, frame = cap.read()
+                ret, frame = self._read_bgr_frame(cap)
                 if not ret or frame is None:
                     raise ValueError(f"Failed to read frame {frame_number} from {self.video_path}")
                 return frame
@@ -343,17 +305,23 @@ class VideoReader:
         # When target is near current cap position, advance by read() to avoid slow seek.
         if self._last_extract_position is not None and frame_number >= self._last_extract_position:
             delta = frame_number - self._last_extract_position
-            if delta <= _EXTRACT_SEEK_THRESHOLD:
-                for _ in range(delta):
-                    ret, frame = self.cap.read()
-                    if not ret or frame is None:
+            if delta <= EXTRACT_SEEK_THRESHOLD:
+                if delta > 0:
+                    frame: BGRFrame | None = None
+                    for _ in range(delta):
+                        ret, frame = self._read_bgr_frame(self.cap)
+                        if not ret or frame is None:
+                            raise ValueError(
+                                f"Failed to read frame {frame_number} from {self.video_path}"
+                            )
+                    if frame is None:
                         raise ValueError(
                             f"Failed to read frame {frame_number} from {self.video_path}"
                         )
-                self._last_extract_position = frame_number
-                return frame
+                    self._last_extract_position = frame_number
+                    return frame
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-        ret, frame = self.cap.read()
+        ret, frame = self._read_bgr_frame(self.cap)
         if not ret or frame is None:
             raise ValueError(f"Failed to read frame {frame_number} from {self.video_path}")
         self._last_extract_position = frame_number
@@ -385,7 +353,12 @@ class VideoReader:
         # use_queue=False: return a dedicated iterator so nested loops are safe.
         if self._current_iterator is not None:
             self._current_iterator.release()
-        self._current_iterator = VideoFrameIterator(self)
+        self._current_iterator = VideoFrameIterator(
+            self,
+            lambda cap, next_frame_id, cap_pos: self._read_next_valid_frame(
+                cap, next_frame_id, current_cap_position=cap_pos
+            ),
+        )
         return self._current_iterator
 
     def __len__(self) -> int:
@@ -447,10 +420,15 @@ class VideoReader:
             return self._current_iterator.frame_id
         return int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)) - 1
 
-    def __enter__(self):
+    def __enter__(self) -> VideoReader:
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
         self.release()
 
     def __str__(self) -> str:

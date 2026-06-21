@@ -4,8 +4,26 @@ import unittest
 import cv2
 import numpy as np
 
-from opencv_video import VideoReader, VideoWriter, VideoWriterParameters
+from opencv_video import VideoReader, VideoWriter, VideoWriterParameters, as_bgr_frame
 from opencv_video.codec import VideoCodec
+
+
+class TestBGRFrame(unittest.TestCase):
+
+    def test_as_bgr_frame_accepts_valid_array(self) -> None:
+        frame = np.zeros((480, 640, 3), dtype=np.uint8)
+        narrowed = as_bgr_frame(frame)
+        self.assertEqual(narrowed.shape, (480, 640, 3))
+
+    def test_as_bgr_frame_rejects_invalid_shape(self) -> None:
+        grayscale = np.zeros((480, 640), dtype=np.uint8)
+        with self.assertRaises(ValueError):
+            as_bgr_frame(grayscale)
+
+    def test_as_bgr_frame_rejects_invalid_dtype(self) -> None:
+        frame = np.zeros((480, 640, 3), dtype=np.float32)
+        with self.assertRaises(TypeError):
+            as_bgr_frame(frame)
 
 
 class TestVideoReader(unittest.TestCase):

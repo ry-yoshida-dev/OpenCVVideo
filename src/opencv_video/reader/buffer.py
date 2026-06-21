@@ -5,8 +5,6 @@ import threading
 from collections.abc import Callable, Iterator
 from typing import Any
 
-import numpy as np
-
 from ..types import BGRFrame
 
 # Sentinel for end of stream in queue

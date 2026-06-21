@@ -18,6 +18,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
+    "numpy",
     "opencv-contrib-python",
     "id-manager @ git+https://github.com/ry-yoshida-dev/IDManager.git",
 ]

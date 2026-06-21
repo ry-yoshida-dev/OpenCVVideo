@@ -5,7 +5,7 @@ import logging
 import cv2
 import numpy as np
 
-from ..types import BGRFrame
+from ..types import BGRFrame, as_bgr_frame
 from ..reader import VideoReader
 from ..writer import VideoWriter, VideoWriterParameters
 from .parameter import VideoCombinatorParameters
@@ -269,7 +269,9 @@ class VideoCombinator:
         new_h, new_w = new_shape
         ratio = min(new_w / original_w, new_h / original_h)
         resized_w, resized_h = int(original_w * ratio), int(original_h * ratio)
-        resized_img = cv2.resize(img, (resized_w, resized_h), interpolation=cv2.INTER_CUBIC)
+        resized_img = as_bgr_frame(
+            cv2.resize(img, (resized_w, resized_h), interpolation=cv2.INTER_CUBIC)
+        )
 
         canvas = np.full((new_h, new_w, 3), color, dtype=np.uint8)
         y_offset = (new_h - resized_h) // 2
