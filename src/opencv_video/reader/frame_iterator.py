@@ -58,6 +58,22 @@ class VideoFrameIterator(Iterator[BGRFrame]):
             raise StopIteration
         return frame
 
+    def skip(self) -> None:
+        """
+        Advance past the current frame without decoding it.
+
+        Leaves `_last_cap_position` stale, so the next real `__next__` call
+        seeks before reading rather than trusting `cap` to already be
+        positioned where this skip left the logical count.
+
+        Raises
+        ------
+        StopIteration: If the current position is past the last frame.
+        """
+        if self._next_frame_id > self.reader.total_frame:
+            raise StopIteration
+        self._next_frame_id += self.reader.freq
+
     @property
     def frame_id(self) -> int:
         """Last yielded frame id (e.g. for use by the owning VideoReader)."""

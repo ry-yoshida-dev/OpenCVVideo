@@ -392,6 +392,29 @@ class VideoReader:
             return self._current_iterator.__next__()
         return self._next_impl()
 
+    def skip(self) -> None:
+        """
+        Advance past the current frame without decoding it.
+
+        Only cheaper than decoding when `use_queue` is False: the background
+        prefetch buffer decodes ahead of consumption regardless of whether
+        anything reads its result, so there is nothing to skip there and this
+        falls back to reading (and discarding) a frame the same as `__next__`.
+
+        Raises
+        ------
+        StopIteration: If the current position is past the last frame.
+        """
+        if self.use_queue:
+            _ = self.__next__()
+            return
+        if self._current_iterator is not None:
+            self._current_iterator.skip()
+            return
+        if self._next_frame_id > self.total_frame:
+            raise StopIteration
+        self._next_frame_id += self.freq
+
     def release(self) -> None:
         """
         Releases the video file and stops the frame buffer if running.
