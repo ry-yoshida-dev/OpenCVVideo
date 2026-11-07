@@ -32,3 +32,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 opencv_video = ["py.typed"]
+
+[tool.uv]
+exclude-newer = "7 days"
