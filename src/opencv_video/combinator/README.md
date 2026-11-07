@@ -2,30 +2,17 @@
 
 ## Overview
 
-Combine multiple input videos into a single grid-layout output video. Each cell is letterboxed to a fixed size; encoding uses [VideoWriter](../writer/).
+Combine multiple input videos into a single grid-layout output video, letterboxing each cell to a fixed size.
 
 ## Components
 
-| File | Role |
+| Component | Description |
 |------|------|
 | [processor.py](processor.py) | `VideoCombinator`: grid composition and output writing |
 | [parameter.py](parameter.py) | `VideoCombinatorParameters`: grid layout and iteration settings |
 | [stop_criteria.py](stop_criteria.py) | `StopCriteria`: when to stop reading inputs |
 
-## VideoCombinatorParameters
-
-| Field | Default | Description |
-|-------|---------|-------------|
-| `rows` | `2` | Number of grid rows |
-| `stop_criteria` | `StopCriteria.SHORT_VIDEO_END` | Stop when any video ends, or when all have ended |
-| `image_shape` | `(1080, 1920)` | Per-cell size as `(height, width)` |
-| `iter_start_frame` | `0` | Start frame for each input |
-| `end_frame` | `-1` | Max output frames; `-1` means no limit |
-| `freq` | `1` | Frame step for each input reader |
-
-Output encoding (FPS, codec, timestamp overlay) is configured via `VideoWriterParameters`.
-
-## Example
+## Examples
 
 ```python
 from opencv_video import VideoCombinator, VideoCombinatorParameters, VideoWriterParameters

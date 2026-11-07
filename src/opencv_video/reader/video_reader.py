@@ -276,6 +276,8 @@ class VideoReader:
         Extracts and saves a specific frame from the video.
 
         When use_queue is True, uses a temporary VideoCapture so it is safe to call during iteration.
+        Otherwise, it seeks, or advances by read() when the target is within
+        EXTRACT_SEEK_THRESHOLD frames after the last extracted position.
 
         Parameters
         ----------
@@ -364,6 +366,9 @@ class VideoReader:
     def __len__(self) -> int:
         """
         Returns the total number of frames in the video.
+
+        The count comes from the capture metadata and may be inaccurate for
+        some files; iteration ends on the read result, not on this count.
 
         Returns
         -------

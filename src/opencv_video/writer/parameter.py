@@ -16,11 +16,12 @@ class VideoWriterParameters:
     codec: VideoCodec
         The codec for the video.
     is_timestamp_enabled: bool
-        Whether to enable timestamp.
+        Whether to draw ``Frame: {id}`` on each frame.
     freq: int
-        The frequency of the timestamp.
+        The step of the frame ID when the timestamp is enabled.
     start_index: int
-        The start index of the timestamp.
+        The start index of the timestamp. Validated but reserved for future
+        offset use.
     """
     fps: int = 30
     codec: VideoCodec = VideoCodec.MP4V

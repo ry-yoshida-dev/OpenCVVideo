@@ -21,7 +21,8 @@ class VideoWriter:
     output_path: str
         The path to save the video.
     writer: cv2.VideoWriter | None
-        The writer for the video.
+        The writer for the video. None until the first write supplies the
+        frame size.
 
     Raises
     ------
@@ -56,6 +57,9 @@ class VideoWriter:
         """
         Write an image to the video.
 
+        When the timestamp overlay is enabled, the image is copied before the
+        text is drawn, so the caller's array is not modified.
+
         Parameters:
         ----------
         image: BGRFrame
@@ -75,6 +79,9 @@ class VideoWriter:
         self.writer.write(frame)
             
     def release(self) -> None:
+        """
+        Release the writer and log the output path at INFO level.
+        """
         if self.writer is None:
             return
         self.writer.release()
