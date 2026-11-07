@@ -49,9 +49,7 @@ class VideoFrameIterator(Iterator[BGRFrame]):
             self._last_cap_position,
         )
         if frame is not None and ret:
-            self._last_cap_position = cap_position_after_read(
-                self._next_frame_id, self.reader.freq
-            )
+            self._last_cap_position = cap_position_after_read(self._next_frame_id)
             self._last_yielded_frame_id = self._next_frame_id
         self._next_frame_id += self.reader.freq
         if frame is None or not ret:

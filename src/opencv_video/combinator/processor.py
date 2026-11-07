@@ -156,10 +156,10 @@ class VideoCombinator:
         Returns
         -------
         tuple[BGRFrame | None, bool]
-            Frame and whether iteration should stop for this batch.
+            Frame, or None when this input has finished, and whether
+            iteration should stop for this batch.
         """
         video_reader = self.video_readers[video_index]
-        cell_height, cell_width = self.combinator_params.image_shape
 
         try:
             frame = next(video_reader)
@@ -169,11 +169,8 @@ class VideoCombinator:
                 case StopCriteria.SHORT_VIDEO_END:
                     return None, True
                 case StopCriteria.LONGEST_VIDEO_END:
-                    blank_frame = np.zeros(
-                        (cell_height, cell_width, 3),
-                        dtype=np.uint8,
-                    )
-                    return blank_frame, False
+                    # The canvas is zero-filled, so a finished input stays a black cell.
+                    return None, False
 
     def _process_frame_batch(self) -> tuple[BGRFrame, int, bool]:
         """
@@ -219,14 +216,12 @@ class VideoCombinator:
         while True:
             canvas, frames_available, should_stop = self._process_frame_batch()
 
-            if frames_available == 0:
+            # A stopped batch may be missing inputs, so it is not written.
+            if frames_available == 0 or should_stop:
                 break
 
             video_writer.write(canvas)
             frame_count += 1
-
-            if should_stop:
-                break
 
             if (
                 self.combinator_params.end_frame > 0

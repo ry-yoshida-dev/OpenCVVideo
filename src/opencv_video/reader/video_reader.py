@@ -149,11 +149,12 @@ class VideoReader:
         if self.freq > self.freq_th:
             cap.set(cv2.CAP_PROP_POS_FRAMES, next_frame_id)
             return self._read_bgr_frame(cap)
-        start_pos = cap_position_after_read(next_frame_id, self.freq) - self.freq
+        # Near the start there may be fewer than freq frames before next_frame_id.
+        start_pos = max(0, next_frame_id - self.freq + 1)
         if current_cap_position != start_pos:
             cap.set(cv2.CAP_PROP_POS_FRAMES, start_pos)
         ret, frame = False, None
-        for _ in range(self.freq):
+        for _ in range(next_frame_id - start_pos + 1):
             ret, frame = self._read_bgr_frame(cap)
             if not ret:
                 return False, None
@@ -194,9 +195,7 @@ class VideoReader:
             raise StopIteration
         ret, frame = self._frame_reader_function()
         if frame is not None and ret:
-            self._last_cap_position = cap_position_after_read(
-                self._next_frame_id, self.freq
-            )
+            self._last_cap_position = cap_position_after_read(self._next_frame_id)
         self._next_frame_id += self.freq
         # Prefer ret over total_frame; some files have incorrect frame count metadata.
         if frame is None or not ret:
@@ -238,7 +237,7 @@ class VideoReader:
                 if not ret or frame is None:
                     return
                 yield (next_id, frame)
-                cap_pos = cap_position_after_read(next_id, self.freq)
+                cap_pos = cap_position_after_read(next_id)
                 next_id += self.freq
         finally:
             if own_cap:
@@ -353,8 +352,8 @@ class VideoReader:
             self._current_iterator = None
             return self
         # use_queue=False: return a dedicated iterator so nested loops are safe.
-        if self._current_iterator is not None:
-            self._current_iterator.release()
+        # A previous iterator may still be in use by an outer loop, so it is not
+        # released here; it releases its capture when garbage-collected.
         self._current_iterator = VideoFrameIterator(
             self,
             lambda cap, next_frame_id, cap_pos: self._read_next_valid_frame(
