@@ -22,6 +22,7 @@ class VideoCodec(Enum):
     VP80: VP8. Common for .webm.
     VP90: VP9. Common for .webm.
     """
+
     MP4V = "mp4v"
     AVC1 = "avc1"
     H264 = "H264"

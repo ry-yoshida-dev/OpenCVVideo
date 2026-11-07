@@ -1,16 +1,18 @@
-from enum import Enum   
+from enum import Enum
+
 
 class VideoExtension(Enum):
     """
     VideoExtension is the extension for the video.
 
-    Attributes:
+    Attributes
     ----------
     MP4: The MP4 extension.
     AVI: The AVI extension.
     MKV: The MKV extension.
     MOV: The MOV extension.
     """
+
     MP4 = "mp4"
     AVI = "avi"
     MKV = "mkv"
@@ -24,4 +26,5 @@ class VideoExtension(Enum):
 
     @property
     def list_extensions(self) -> list[str]:
+        """All supported extensions, without the leading dot."""
         return [ext.value for ext in type(self)]

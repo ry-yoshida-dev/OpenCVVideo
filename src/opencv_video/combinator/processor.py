@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import logging
+import math
 
 import cv2
 import numpy as np
+from typing_extensions import override
 
-from ..types import BGRFrame, as_bgr_frame
 from ..reader import VideoReader
+from ..types import BGRFrame, as_bgr_frame
 from ..writer import VideoWriter, VideoWriterParameters
 from .parameter import VideoCombinatorParameters
 from .stop_criteria import StopCriteria
@@ -63,11 +65,11 @@ class VideoCombinator:
         if not video_paths:
             raise ValueError("video_paths must contain at least one path")
 
-        self.combinator_params = combinator_params
-        self.writer_params = writer_params
-        self.video_paths = video_paths
-        self.output_path = output_path
-        self.video_readers = [
+        self.combinator_params: VideoCombinatorParameters = combinator_params
+        self.writer_params: VideoWriterParameters = writer_params
+        self.video_paths: list[str] = video_paths
+        self.output_path: str = output_path
+        self.video_readers: list[VideoReader] = [
             VideoReader(
                 video_path=video_path,
                 iter_start_frame=self.combinator_params.iter_start_frame,
@@ -75,7 +77,9 @@ class VideoCombinator:
             )
             for video_path in video_paths
         ]
-        self.columns = int(np.ceil(len(self.video_readers) / self.combinator_params.rows))
+        self.columns: int = math.ceil(
+            len(self.video_readers) / self.combinator_params.rows
+        )
         logger.info(
             "Initialized combinator: videos=%d, columns=%d, rows=%d",
             len(self.video_readers),
@@ -133,14 +137,18 @@ class VideoCombinator:
         video_index : int
             Index of the video in ``video_readers``.
         """
-        resized_frame, _ = self.letterbox_resize(frame, self.combinator_params.image_shape)
+        resized_frame, _ = self.letterbox_resize(
+            frame, self.combinator_params.image_shape
+        )
         row, col = self._get_grid_position(video_index)
         cell_height, cell_width = self.combinator_params.image_shape
 
         y_start = row * cell_height
-        y_end = y_start + resized_frame.shape[0]
+        resized_height: int = resized_frame.shape[0]
+        resized_width: int = resized_frame.shape[1]
+        y_end = y_start + resized_height
         x_start = col * cell_width
-        x_end = x_start + resized_frame.shape[1]
+        x_end = x_start + resized_width
 
         canvas[y_start:y_end, x_start:x_end] = resized_frame
 
@@ -210,7 +218,7 @@ class VideoCombinator:
         video_writer = VideoWriter(self.output_path, self.writer_params)
 
         for reader in self.video_readers:
-            iter(reader)
+            _ = iter(reader)
 
         frame_count = 0
         while True:
@@ -232,7 +240,9 @@ class VideoCombinator:
         video_writer.release()
         for reader in self.video_readers:
             reader.release()
-        logger.info("Combined videos saved to %s (%d frames)", self.output_path, frame_count)
+        logger.info(
+            "Combined videos saved to %s (%d frames)", self.output_path, frame_count
+        )
 
     @staticmethod
     def letterbox_resize(
@@ -257,7 +267,8 @@ class VideoCombinator:
         tuple[BGRFrame, float]
             Letterboxed image and scaling ratio.
         """
-        original_h, original_w = img.shape[:2]
+        original_h: int = img.shape[0]
+        original_w: int = img.shape[1]
         if (original_h, original_w) == new_shape:
             return img, 1.0
 
@@ -271,10 +282,13 @@ class VideoCombinator:
         canvas = np.full((new_h, new_w, 3), color, dtype=np.uint8)
         y_offset = (new_h - resized_h) // 2
         x_offset = (new_w - resized_w) // 2
-        canvas[y_offset : y_offset + resized_h, x_offset : x_offset + resized_w] = resized_img
+        canvas[y_offset : y_offset + resized_h, x_offset : x_offset + resized_w] = (
+            resized_img
+        )
 
         return canvas, ratio
 
+    @override
     def __str__(self) -> str:
         return (
             f"VideoCombinator(video_paths={self.video_paths}, "

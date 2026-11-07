@@ -3,12 +3,8 @@ from __future__ import annotations
 import queue as queue_module
 import threading
 from collections.abc import Callable, Iterator
-from typing import Any
 
 from ..types import BGRFrame
-
-# Sentinel for end of stream in queue
-_QUEUE_END: Any = object()
 
 
 class FrameBuffer:
@@ -26,6 +22,8 @@ class FrameBuffer:
         queue_size: int = 2,
     ) -> None:
         """
+        Create a buffer that has not started its producer yet.
+
         Parameters
         ----------
         frame_iterator_factory : callable
@@ -33,9 +31,12 @@ class FrameBuffer:
         queue_size : int
             Max size of the internal queue.
         """
-        self._frame_iterator_factory = frame_iterator_factory
-        self._queue_size = queue_size
-        self._queue: queue_module.Queue[tuple[int, BGRFrame] | Any] | None = None
+        self._frame_iterator_factory: Callable[[], Iterator[tuple[int, BGRFrame]]] = (
+            frame_iterator_factory
+        )
+        self._queue_size: int = queue_size
+        # None marks the end of the stream.
+        self._queue: queue_module.Queue[tuple[int, BGRFrame] | None] | None = None
         self._producer_stop: threading.Event | None = None
         self._producer_thread: threading.Thread | None = None
 
@@ -49,7 +50,7 @@ class FrameBuffer:
                     self._queue.put((frame_id, frame))
         finally:
             if self._queue is not None:
-                self._queue.put(_QUEUE_END)
+                self._queue.put(None)
 
     def start(self) -> None:
         """Start the producer thread. Idempotent if already started."""
@@ -57,7 +58,9 @@ class FrameBuffer:
             return
         self._queue = queue_module.Queue(maxsize=self._queue_size)
         self._producer_stop = threading.Event()
-        self._producer_thread = threading.Thread(target=self._producer_loop, daemon=True)
+        self._producer_thread = threading.Thread(
+            target=self._producer_loop, daemon=True
+        )
         self._producer_thread.start()
 
     def release(self) -> None:
@@ -72,10 +75,7 @@ class FrameBuffer:
 
     def is_running(self) -> bool:
         """Return True if the producer thread is running."""
-        return (
-            self._producer_thread is not None
-            and self._producer_thread.is_alive()
-        )
+        return self._producer_thread is not None and self._producer_thread.is_alive()
 
     def __iter__(self) -> FrameBuffer:
         self.start()
@@ -85,6 +85,6 @@ class FrameBuffer:
         if self._queue is None:
             raise StopIteration
         item = self._queue.get()
-        if item is _QUEUE_END:
+        if item is None:
             raise StopIteration
         return item

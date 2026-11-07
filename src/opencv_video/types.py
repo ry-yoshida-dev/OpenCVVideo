@@ -1,6 +1,6 @@
 """Shared array type aliases for OpenCV BGR video frames."""
 
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -8,16 +8,16 @@ from numpy.typing import NDArray
 BGR_CHANNELS: int = 3
 
 # OpenCV BGR frame: (height, width, BGR_CHANNELS), uint8.
-BGRFrame: TypeAlias = NDArray[np.uint8]
+BGRFrame: TypeAlias = np.ndarray[tuple[int, int, int], np.dtype[np.uint8]]
 
 
-def as_bgr_frame(frame: np.ndarray) -> BGRFrame:
+def as_bgr_frame(frame: NDArray[np.generic]) -> BGRFrame:
     """
     Validate and narrow a NumPy array to BGRFrame.
 
     Parameters
     ----------
-    frame : np.ndarray
+    frame : NDArray[np.generic]
         Raw array returned by OpenCV read/write APIs.
 
     Returns
@@ -38,4 +38,5 @@ def as_bgr_frame(frame: np.ndarray) -> BGRFrame:
         raise ValueError(
             f"Expected shape (H, W, {BGR_CHANNELS}), got {tuple(frame.shape)}"
         )
-    return frame
+    # dtype and rank are only known at runtime, after the checks above.
+    return cast(BGRFrame, frame)

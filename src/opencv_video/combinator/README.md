@@ -15,7 +15,11 @@ Combine multiple input videos into a single grid-layout output video, letterboxi
 ## Examples
 
 ```python
-from opencv_video import VideoCombinator, VideoCombinatorParameters, VideoWriterParameters
+from opencv_video import (
+    VideoCombinator,
+    VideoCombinatorParameters,
+    VideoWriterParameters,
+)
 from opencv_video.combinator import StopCriteria
 from opencv_video.codec import VideoCodec
 

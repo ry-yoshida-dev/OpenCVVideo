@@ -1,42 +1,46 @@
 from __future__ import annotations
 
-from collections.abc import Iterator
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable, Iterator
 
 import cv2
+from typing_extensions import override
 
 from ..types import BGRFrame
+from .iteration_source import IterationSource
 from .utils import cap_position_after_read
-
-if TYPE_CHECKING:
-    from .video_reader import VideoReader
 
 
 class VideoFrameIterator(Iterator[BGRFrame]):
     """
     Per-iteration iterator that owns its own VideoCapture.
+
     Makes nested loops (e.g. for a in r: for b in r:) safe by not sharing cap state.
     """
 
     def __init__(
         self,
-        reader: VideoReader,
+        reader: IterationSource,
         read_valid_frame: Callable[
             [cv2.VideoCapture, int, int | None],
             tuple[bool, BGRFrame | None],
         ],
     ) -> None:
-        self.reader = reader
-        self._read_valid_frame = read_valid_frame
-        self._cap = cv2.VideoCapture(reader.video_path)
-        if not self._cap.isOpened():
+        self.reader: IterationSource = reader
+        self._read_valid_frame: Callable[
+            [cv2.VideoCapture, int, int | None],
+            tuple[bool, BGRFrame | None],
+        ] = read_valid_frame
+        cap = cv2.VideoCapture(reader.video_path)
+        self._cap: cv2.VideoCapture | None = cap
+        if not cap.isOpened():
             raise ValueError(
                 f"Error: Failed to open the video file: {reader.video_path}"
             )
-        self._next_frame_id = reader.iter_start_frame
+        self._next_frame_id: int = reader.iter_start_frame
         self._last_cap_position: int | None = None
         self._last_yielded_frame_id: int | None = None
 
+    @override
     def __next__(self) -> BGRFrame:
         if self._next_frame_id > self.reader.total_frame:
             raise StopIteration
@@ -81,9 +85,11 @@ class VideoFrameIterator(Iterator[BGRFrame]):
 
     @property
     def is_reach_end_of_video(self) -> bool:
+        """Whether iteration has moved past the last frame."""
         return self._next_frame_id > self.reader.total_frame
 
     def release(self) -> None:
+        """Release the capture owned by this iterator. Safe to call twice."""
         if hasattr(self, "_cap") and self._cap is not None:
             self._cap.release()
             self._cap = None

@@ -1,13 +1,12 @@
+from .codec import VideoCodec
 from .combinator import (
+    StopCriteria,
     VideoCombinator,
     VideoCombinatorParameters,
-    StopCriteria,
 )
 from .reader import VideoReader
-from .writer import VideoWriter, VideoWriterParameters
-from .codec import VideoCodec
 from .types import BGRFrame, as_bgr_frame
-
+from .writer import VideoWriter, VideoWriterParameters
 
 __all__ = [
     "BGRFrame",

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from types import TracebackType
-from typing import Callable
 
 import cv2
+from typing_extensions import override
 
 from ..types import BGRFrame, as_bgr_frame
 from .buffer import FrameBuffer
@@ -68,7 +68,9 @@ class VideoReader:
     queue_size: int = 2
 
     cap: cv2.VideoCapture = field(init=False)
-    _frame_reader_function: Callable[[], tuple[bool, BGRFrame | None]] = field(init=False)
+    _frame_reader_function: Callable[[], tuple[bool, BGRFrame | None]] = field(
+        init=False
+    )
     total_frame: int = field(init=False)
     _next_frame_id: int = field(init=False)
     _buffer: FrameBuffer | None = field(init=False, default=None)
@@ -90,7 +92,9 @@ class VideoReader:
             If the video file cannot be opened.
         """
         if not os.path.exists(self.video_path):
-            raise FileNotFoundError(f"Error: The video file does not exist: {self.video_path}")
+            raise FileNotFoundError(
+                f"Error: The video file does not exist: {self.video_path}"
+            )
 
         self.cap = cv2.VideoCapture(self.video_path)
         if not self.cap.isOpened():
@@ -102,7 +106,9 @@ class VideoReader:
         self._next_impl = self._next_from_cap
         self._current_iterator = None
 
-    def define_frame_reader_function(self) -> Callable[[], tuple[bool, BGRFrame | None]]:
+    def define_frame_reader_function(
+        self,
+    ) -> Callable[[], tuple[bool, BGRFrame | None]]:
         """
         Define the function to read the next frame.
 
@@ -147,12 +153,12 @@ class VideoReader:
             (success, frame). Frame is None on failure.
         """
         if self.freq > self.freq_th:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, next_frame_id)
+            _ = cap.set(cv2.CAP_PROP_POS_FRAMES, next_frame_id)
             return self._read_bgr_frame(cap)
         # Near the start there may be fewer than freq frames before next_frame_id.
         start_pos = max(0, next_frame_id - self.freq + 1)
         if current_cap_position != start_pos:
-            cap.set(cv2.CAP_PROP_POS_FRAMES, start_pos)
+            _ = cap.set(cv2.CAP_PROP_POS_FRAMES, start_pos)
         ret, frame = False, None
         for _ in range(next_frame_id - start_pos + 1):
             ret, frame = self._read_bgr_frame(cap)
@@ -208,6 +214,7 @@ class VideoReader:
     ) -> Iterator[tuple[int, BGRFrame]]:
         """
         Yield (frame_id, frame). Uses cap if given.
+
         Delegates "next valid frame" to _read_next_valid_frame; no branching on freq/freq_th here.
 
         Parameters
@@ -226,7 +233,11 @@ class VideoReader:
             if not cap.isOpened():
                 return
         try:
-            total = self.total_frame if not own_cap else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            total = (
+                self.total_frame
+                if not own_cap
+                else int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            )
             next_id = self.iter_start_frame
             cap_pos: int | None = None
             # When total <= 0 (e.g. live stream), rely only on ret; otherwise use total as upper bound.
@@ -263,6 +274,7 @@ class VideoReader:
 
     @property
     def is_reach_end_of_video(self) -> bool:
+        """Whether iteration has moved past the last frame."""
         if self._current_iterator is not None and not self.use_queue:
             return self._current_iterator.is_reach_end_of_video
         return self._next_frame_id > self.total_frame
@@ -272,7 +284,7 @@ class VideoReader:
         frame_number: int,
     ) -> BGRFrame:
         """
-        Extracts and saves a specific frame from the video.
+        Extract a specific frame from the video.
 
         When use_queue is True, uses a temporary VideoCapture so it is safe to call during iteration.
         Otherwise, it seeks, or advances by read() when the target is within
@@ -296,41 +308,48 @@ class VideoReader:
         if self.use_queue and self._buffer is not None and self._buffer.is_running():
             cap = cv2.VideoCapture(self.video_path)
             try:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+                _ = cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
                 ret, frame = self._read_bgr_frame(cap)
                 if not ret or frame is None:
-                    raise ValueError(f"Failed to read frame {frame_number} from {self.video_path}")
+                    raise ValueError(
+                        f"Failed to read frame {frame_number} from {self.video_path}"
+                    )
                 return frame
             finally:
                 cap.release()
         # When target is near current cap position, advance by read() to avoid slow seek.
-        if self._last_extract_position is not None and frame_number >= self._last_extract_position:
+        if (
+            self._last_extract_position is not None
+            and frame_number >= self._last_extract_position
+        ):
             delta = frame_number - self._last_extract_position
             if delta <= EXTRACT_SEEK_THRESHOLD:
                 if delta > 0:
-                    frame: BGRFrame | None = None
+                    advanced_frame: BGRFrame | None = None
                     for _ in range(delta):
-                        ret, frame = self._read_bgr_frame(self.cap)
-                        if not ret or frame is None:
+                        ret, advanced_frame = self._read_bgr_frame(self.cap)
+                        if not ret or advanced_frame is None:
                             raise ValueError(
                                 f"Failed to read frame {frame_number} from {self.video_path}"
                             )
-                    if frame is None:
+                    if advanced_frame is None:
                         raise ValueError(
                             f"Failed to read frame {frame_number} from {self.video_path}"
                         )
                     self._last_extract_position = frame_number
-                    return frame
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+                    return advanced_frame
+        _ = self.cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
         ret, frame = self._read_bgr_frame(self.cap)
         if not ret or frame is None:
-            raise ValueError(f"Failed to read frame {frame_number} from {self.video_path}")
+            raise ValueError(
+                f"Failed to read frame {frame_number} from {self.video_path}"
+            )
         self._last_extract_position = frame_number
         return frame
 
     def __iter__(self) -> Iterator[BGRFrame]:
         """
-        Resets the video position to the specified iter_start_frame and returns an iterator over frames.
+        Reset the video position to iter_start_frame and return an iterator over frames.
 
         When use_queue is True, returns self (buffer feeds frames). When use_queue is False,
         returns a dedicated VideoFrameIterator so nested loops over the same reader are safe.
@@ -364,7 +383,7 @@ class VideoReader:
 
     def __len__(self) -> int:
         """
-        Returns the total number of frames in the video.
+        Return the total number of frames in the video.
 
         The count comes from the capture metadata and may be inaccurate for
         some files; iteration ends on the read result, not on this count.
@@ -377,7 +396,8 @@ class VideoReader:
         return self.total_frame
 
     def __next__(self) -> BGRFrame:
-        """ Retrieves the next frame in the video, based on the specified frequency.
+        """
+        Retrieve the next frame in the video, based on the specified frequency.
 
         When use_queue=False, delegates to the current VideoFrameIterator if one exists,
         so that next(reader) and next(iter(reader)) stay in sync.
@@ -458,5 +478,8 @@ class VideoReader:
     ) -> None:
         self.release()
 
+    @override
     def __str__(self) -> str:
-        return f"VideoReader(video_path={self.video_path}, total_frame={self.total_frame})"
+        return (
+            f"VideoReader(video_path={self.video_path}, total_frame={self.total_frame})"
+        )
