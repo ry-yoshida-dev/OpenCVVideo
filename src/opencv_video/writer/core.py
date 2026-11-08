@@ -1,9 +1,9 @@
 import logging
 from pathlib import Path
 from types import TracebackType
+from typing import Self
 
 import cv2
-from typing_extensions import Self
 
 from ..types import BGRFrame
 from .parameter import VideoWriterParameters
