@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 from opencv_video import BGRFrame, VideoReader
@@ -11,7 +12,10 @@ GRAY_TOLERANCE = 6
 
 
 def assert_frame_id(frame: BGRFrame, frame_id: int) -> None:
-    assert abs(float(frame.mean()) - gray_level(frame_id)) <= GRAY_TOLERANCE
+    assert (
+        abs(float(np.mean(frame, dtype=np.float64)) - gray_level(frame_id))
+        <= GRAY_TOLERANCE
+    )
 
 
 def test_missing_file_raises(tmp_path: Path) -> None:
